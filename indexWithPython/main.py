@@ -7,13 +7,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Define the path to your large XML file
-xml_file_path = '../data/Posts.xml'
+xml_file_path = '/Users/sina/projects/uni/tshaped-Mining/files/Golden/java/JavaAnswers.xml'
 
 # Define the fields you want to index
 fields_to_index = ["Id", "PostTypeId", "CreationDate", "Score", "ViewCount", "OwnerUserId", "Title", "Tags"]
 
 # Initialize SQLite database
-conn = sqlite3.connect('index.db')
+conn = sqlite3.connect('./index.db')
 cursor = conn.cursor()
 
 # Create table for indexing
