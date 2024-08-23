@@ -1,19 +1,18 @@
 from tkinter import ttk
 import AuthorHistory
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
 from collections import defaultdict
+import numpy as np
+from scipy.interpolate import PchipInterpolator
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.ticker import ScalarFormatter
+from scipy.signal import savgol_filter
 
 def plot_chart(author_id, selected_skills):
     # Fetch data from AuthorHistory
     dates, scores, skill_areas = AuthorHistory.getAuthorHistory(author_id, selected_skills)
-
-    # Print debugging information
-    print(f"Number of dates: {len(dates)}")
-    print(f"Number of scores: {len(scores)}")
-    print(f"Number of skill areas: {len(skill_areas)}")
 
     # Create a new window for the plot
     plot_window = tk.Toplevel()
@@ -38,25 +37,41 @@ def plot_chart(author_id, selected_skills):
     for skill in data:
         data[skill] = data[skill] + [0] * (max_length - len(data[skill]))
 
-    # Print debugging information
-    print(f"Number of unique dates: {len(unique_dates)}")
-    print(f"Number of skill areas after processing: {len(data)}")
-    for skill, values in data.items():
-        print(f"Skill: {skill}, Number of values: {len(values)}")
+    # Convert dates to numerical values for interpolation
+    x = mdates.date2num(unique_dates)
 
-    # Create the stream graph
-    ax.stackplot(unique_dates, data.values(),
-                 labels=data.keys(), alpha=0.8)
+    # Create more points for smoother curves
+    x_new = np.linspace(x.min(), x.max(), num=1000)  # Increased from 500 to 1000
+
+    # Interpolate and smooth the data for each skill
+    interpolated_data = {}
+    for skill, values in data.items():
+        interpolator = PchipInterpolator(x, values)
+        interpolated_values = interpolator(x_new)
+        # Apply Savitzky-Golay filter for smoothing
+        smoothed_values = savgol_filter(interpolated_values, window_length=51, polyorder=3)
+        interpolated_data[skill] = np.clip(smoothed_values, 0, None)  # Clip negative values to 0
+
+    # Create the stream graph with interpolated and smoothed data
+    ax.stackplot(x_new, interpolated_data.values(),
+                 labels=interpolated_data.keys(), alpha=0.8)
 
     ax.set_title(f"Stream Graph for Author ID: {author_id}")
     ax.set_xlabel("Creation Date")
-    ax.set_ylabel("Score")
+    ax.set_ylabel("Score (log scale)")
+
+    # Set y-axis to logarithmic scale
+    ax.set_yscale('symlog', linthresh=1)
+    ax.yaxis.set_major_formatter(ScalarFormatter())
 
     # Improve date formatting on x-axis
     fig.autofmt_xdate()
     date_format = mdates.DateFormatter("%Y-%m-%d")
     ax.xaxis.set_major_formatter(date_format)
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    # Convert x-axis back to dates
+    ax.set_xlim(mdates.num2date(x_new.min()), mdates.num2date(x_new.max()))
 
     # Add legend to the chart
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -75,6 +90,7 @@ def plot_chart(author_id, selected_skills):
     canvas.get_tk_widget().configure(yscrollcommand=scrollbar.set)
     canvas.get_tk_widget().bind('<Configure>', lambda e: canvas.get_tk_widget().configure(
         scrollregion=canvas.get_tk_widget().bbox('all')))
+
 
 def on_button_click(author_id_entry, skill_listbox):
     author_id = author_id_entry.get()
